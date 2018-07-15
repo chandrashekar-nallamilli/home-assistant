@@ -51,7 +51,7 @@ class AuthManager:
         self.login_flow = data_entry_flow.FlowManager(
             hass, self._async_create_login_flow,
             self._async_finish_login_flow)
-        self._access_tokens = {}
+        self._access_tokens = OrderedDict()
 
     @property
     def active(self):
@@ -71,9 +71,13 @@ class AuthManager:
         return False
 
     @property
-    def async_auth_providers(self):
+    def auth_providers(self):
         """Return a list of available auth providers."""
-        return self._providers.values()
+        return list(self._providers.values())
+
+    async def async_get_users(self):
+        """Retrieve all users."""
+        return await self._store.async_get_users()
 
     async def async_get_user(self, user_id):
         """Retrieve a user."""
@@ -87,6 +91,18 @@ class AuthManager:
             is_active=True,
         )
 
+    async def async_create_user(self, name):
+        """Create a user."""
+        kwargs = {
+            'name': name,
+            'is_active': True,
+        }
+
+        if await self._user_should_be_owner():
+            kwargs['is_owner'] = True
+
+        return await self._store.async_create_user(**kwargs)
+
     async def async_get_or_create_user(self, credentials):
         """Get or create a user."""
         if not credentials.is_new:
@@ -98,23 +114,17 @@ class AuthManager:
             raise ValueError('Unable to find the user.')
 
         auth_provider = self._async_get_auth_provider(credentials)
+
+        if auth_provider is None:
+            raise RuntimeError('Credential with unknown provider encountered')
+
         info = await auth_provider.async_user_meta_for_credentials(
             credentials)
 
-        kwargs = {
-            'credentials': credentials,
-            'name': info.get('name')
-        }
-
-        # Make owner and activate user if it's the first user.
-        if await self._store.async_get_users():
-            kwargs['is_owner'] = False
-            kwargs['is_active'] = False
-        else:
-            kwargs['is_owner'] = True
-            kwargs['is_active'] = True
-
-        return await self._store.async_create_user(**kwargs)
+        return await self._store.async_create_user(
+            credentials=credentials,
+            name=info.get('name'),
+        )
 
     async def async_link_user(self, user, credentials):
         """Link credentials to an existing user."""
@@ -122,7 +132,33 @@ class AuthManager:
 
     async def async_remove_user(self, user):
         """Remove a user."""
+        tasks = [
+            self.async_remove_credentials(credentials)
+            for credentials in user.credentials
+        ]
+
+        if tasks:
+            await asyncio.wait(tasks)
+
         await self._store.async_remove_user(user)
+
+    async def async_activate_user(self, user):
+        """Activate a user."""
+        await self._store.async_activate_user(user)
+
+    async def async_deactivate_user(self, user):
+        """Deactivate a user."""
+        await self._store.async_deactivate_user(user)
+
+    async def async_remove_credentials(self, credentials):
+        """Remove credentials."""
+        provider = self._async_get_auth_provider(credentials)
+
+        if (provider is not None and
+                hasattr(provider, 'async_will_remove_credentials')):
+            await provider.async_will_remove_credentials(credentials)
+
+        await self._store.async_remove_credentials(credentials)
 
     async def async_create_refresh_token(self, user, client_id=None):
         """Create a new refresh token for a user."""
@@ -158,7 +194,7 @@ class AuthManager:
         if tkn is None:
             return None
 
-        if tkn.expired:
+        if tkn.expired or not tkn.refresh_token.user.is_active:
             self._access_tokens.pop(token)
             return None
 
@@ -167,10 +203,6 @@ class AuthManager:
     async def _async_create_login_flow(self, handler, *, source, data):
         """Create a login flow."""
         auth_provider = self._providers[handler]
-
-        if not auth_provider.initialized:
-            auth_provider.initialized = True
-            await auth_provider.async_initialize()
 
         return await auth_provider.async_credential_flow()
 
@@ -188,4 +220,16 @@ class AuthManager:
         """Helper to get auth provider from a set of credentials."""
         auth_provider_key = (credentials.auth_provider_type,
                              credentials.auth_provider_id)
-        return self._providers[auth_provider_key]
+        return self._providers.get(auth_provider_key)
+
+    async def _user_should_be_owner(self):
+        """Determine if user should be owner.
+
+        A user should be an owner if it is the first non-system user that is
+        being created.
+        """
+        for user in await self._store.async_get_users():
+            if not user.system_generated:
+                return False
+
+        return True

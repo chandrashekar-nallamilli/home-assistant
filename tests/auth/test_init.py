@@ -46,7 +46,7 @@ async def test_auth_manager_from_config_validates_config_and_id(mock_hass):
             'name': provider.name,
             'id': provider.id,
             'type': provider.type,
-        } for provider in manager.async_auth_providers]
+        } for provider in manager.auth_providers]
     assert providers == [{
         'name': 'Test Name',
         'type': 'insecure_example',
@@ -80,7 +80,7 @@ async def test_create_new_user(hass, hass_storage):
     credentials = step['result']
     user = await manager.async_get_or_create_user(credentials)
     assert user is not None
-    assert user.is_owner is True
+    assert user.is_owner is False
     assert user.name == 'Test Name'
 
 
@@ -198,7 +198,7 @@ async def test_saving_loading(hass, hass_storage):
         'password': 'test-pass',
     })
     user = await manager.async_get_or_create_user(step['result'])
-
+    await manager.async_activate_user(user)
     refresh_token = await manager.async_create_refresh_token(user, CLIENT_ID)
 
     manager.async_create_access_token(refresh_token)
