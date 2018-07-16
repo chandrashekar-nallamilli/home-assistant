@@ -1,4 +1,5 @@
 config/*
+!config/almond_plus.*
 
 tests/testing_config/deps
 tests/testing_config/home-assistant.log
