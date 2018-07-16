@@ -1,4 +1,6 @@
+!config/*
 config/*
+!config/custom_components
 
 tests/testing_config/deps
 tests/testing_config/home-assistant.log
@@ -111,4 +113,3 @@ desktop.ini
 # monkeytype
 monkeytype.sqlite3
 
-!config/almond_plus.*
