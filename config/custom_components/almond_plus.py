@@ -5,14 +5,9 @@ For more details about this component, please refer to the documentation at
 https://home-assistant.io/components/almond_plus/
 """
 import logging
-
 import voluptuous as vol
-
-from homeassistant.const import (
-    EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP)
-from homeassistant.const import CONF_PORT
 import homeassistant.helpers.config_validation as cv
-
+from homeassistant.helpers.discovery import load_platform
 
 # -*- coding: utf-8 -*-
 import threading
@@ -27,49 +22,45 @@ _LOGGER = logging.getLogger(__name__)
 
 
 DOMAIN = "almond_plus"
+DATA_ALMONDPLUS = "ALMONDPLUS"
+CONF_URL = "url"
 
 CONFIG_SCHEMA = vol.Schema({
     DOMAIN: vol.Schema({
-        vol.Required(CONF_PORT): cv.string,
+        vol.Required(CONF_URL): cv.string,
     }),
 }, extra=vol.ALLOW_EXTRA)
 
 
 def setup(hass, config):
     """Set up the Arduino component."""
-    import serial
-
-    port = config[DOMAIN][CONF_PORT]
-
-    global BOARD
+    return_status = False
     try:
-        BOARD = ArduinoBoard(port)
-    except (serial.serialutil.SerialException, FileNotFoundError):
-        _LOGGER.error("Your port %s is not accessible", port)
-        return False
+        _LOGGER.debug("Started - find me 1")
+        connect_url = config[DOMAIN][CONF_URL]
+        hass.data[DATA_ALMONDPLUS] = AlmondPlus(connect_url)
+        hass.data[DATA_ALMONDPLUS].start()
+        _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS].get_device_list()))
+        _LOGGER.debug("Loading switch platform")
+        load_platform(hass, DOMAIN, 'switch', discovered=None, hass_config=None)
+        return_status = True
+    except Exception as e:
+        _LOGGER.error("Error\n"
+                      +"**************************\n"
+                      + str(e) + "\n"
+                      + "**************************")
+    _LOGGER.debug("Setup ended with "+str(return_status))
 
-    try:
-        if BOARD.get_firmata()[1] <= 2:
-            _LOGGER.error("The StandardFirmata sketch should be 2.2 or newer")
-            return False
-    except IndexError:
-        _LOGGER.warning("The version of the StandardFirmata sketch was not"
-                        "detected. This may lead to side effects")
+    return return_status
 
-    def stop_arduino(event):
-        """Stop the Arduino service."""
-        BOARD.disconnect()
+def stop_almond_plus(event):
+    pass
 
-    def start_arduino(event):
-        """Start the Arduino service."""
-        hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, stop_arduino)
-
-    hass.bus.listen_once(EVENT_HOMEASSISTANT_START, start_arduino)
-
-    return True
+def start_almond_plus(event):
+    pass
 
 
-class PyAlmondPlus:
+class AlmondPlus:
 
     def __init__(self, api_url, call_back=None):
         self.api_url = api_url

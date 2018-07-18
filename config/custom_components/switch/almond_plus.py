@@ -1,83 +1,72 @@
 """
-Support for switching Arduino pins on and off.
-
-So far only digital pins are supported.
+Support for switching Almond+ binary switches.
 
 For more details about this platform, please refer to the documentation at
-https://home-assistant.io/components/switch.arduino/
+https://home-assistant.io/components/switch.almond_plus/
 """
 import logging
+from homeassistant.components.switch import SwitchDevice
+import custom_components.almond_plus as almond_plus
 
-import voluptuous as vol
-
-import homeassistant.components.arduino as arduino
-from homeassistant.components.switch import (SwitchDevice, PLATFORM_SCHEMA)
-from homeassistant.const import CONF_NAME
-import homeassistant.helpers.config_validation as cv
-
-
-DEPENDENCIES = ['arduino']
+DOMAIN = "almond_plus"
+DATA_ALMONDPLUS = "ALMONDPLUS"
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_PINS = 'pins'
-CONF_TYPE = 'digital'
-CONF_NEGATE = 'negate'
-CONF_INITIAL = 'initial'
-
-PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_NAME): cv.string,
-    vol.Optional(CONF_INITIAL, default=False): cv.boolean,
-    vol.Optional(CONF_NEGATE, default=False): cv.boolean,
-})
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_PINS, default={}):
-        vol.Schema({cv.positive_int: PIN_SCHEMA}),
-})
+#
+# PIN_SCHEMA = vol.Schema({
+#     vol.Required(CONF_NAME): cv.string,
+#     vol.Optional(CONF_INITIAL, default=False): cv.boolean,
+#     vol.Optional(CONF_NEGATE, default=False): cv.boolean,
+# })
+#
+# PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+#     vol.Required(CONF_PINS, default={}):
+#         vol.Schema({cv.positive_int: PIN_SCHEMA}),
+# })
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up the Arduino platform."""
-    # Verify that Arduino board is present
-    if arduino.BOARD is None:
-        _LOGGER.error("A connection has not been made to the Arduino board")
-        return False
-
-    pins = config.get(CONF_PINS)
-
+    return_value = False
+    _LOGGER.debug("Started - find me 2")
+    my_almond_plus = hass.data[DATA_ALMONDPLUS]
     switches = []
-    for pinnum, pin in pins.items():
-        switches.append(ArduinoSwitch(pinnum, pin))
+    _LOGGER.debug("looking for devices")
+    for almond_entity in my_almond_plus.get_device_list:
+        switches.append(AlmondPlusSwitch(almond_entity))
     add_devices(switches)
+    return_value = True
+    _LOGGER.debug("Setup ended with "+str(return_value))
+    return return_value
 
 
-class ArduinoSwitch(SwitchDevice):
+class AlmondPlusSwitch(SwitchDevice):
     """Representation of an Arduino switch."""
 
-    def __init__(self, pin, options):
-        """Initialize the Pin."""
-        self._pin = pin
-        self._name = options.get(CONF_NAME)
-        self.pin_type = CONF_TYPE
-        self.direction = 'out'
+    def __init__(self, device):
+        self._id = device.id
+        self._device_id = device.device_id
+        self._name = device.name + '_' + device.id + '_' +  device.device_id
+        self._state = ''
+        self.value_value = device.value_value
+        self._set_state(device.value_value)
 
-        self._state = options.get(CONF_INITIAL)
-
-        if options.get(CONF_NEGATE):
-            self.turn_on_handler = arduino.BOARD.set_digital_out_low
-            self.turn_off_handler = arduino.BOARD.set_digital_out_high
-        else:
-            self.turn_on_handler = arduino.BOARD.set_digital_out_high
-            self.turn_off_handler = arduino.BOARD.set_digital_out_low
-
-        arduino.BOARD.set_mode(self._pin, self.direction, self.pin_type)
-        (self.turn_on_handler if self._state else self.turn_off_handler)(pin)
 
     @property
     def name(self):
         """Get the name of the pin."""
         return self._name
+
+    @property
+    def id(self):
+        """Get the name of the pin."""
+        return self._id
+
+    @property
+    def device_id(self):
+        """Get the name of the pin."""
+        return self._device_id
 
     @property
     def is_on(self):
@@ -86,10 +75,16 @@ class ArduinoSwitch(SwitchDevice):
 
     def turn_on(self, **kwargs):
         """Turn the pin to high/on."""
-        self._state = True
-        self.turn_on_handler(self._pin)
+        self._state = 'on'
 
     def turn_off(self, **kwargs):
         """Turn the pin to low/off."""
-        self._state = False
-        self.turn_off_handler(self._pin)
+        self._state = 'off'
+
+    def _set_state(self, value_value):
+        if value_value == "True":
+            self._state = 'on'
+        elif value_value == "False":
+            self._state = 'off'
+        else:
+            self._state = 'unknown'
