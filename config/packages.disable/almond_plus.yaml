@@ -1,0 +1,2 @@
+almond_plus:
+    url: !secret almond_plus_url

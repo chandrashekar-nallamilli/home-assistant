@@ -33,7 +33,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     my_almond_plus = hass.data[DATA_ALMONDPLUS]
     switches = []
     _LOGGER.debug("looking for devices")
-    for almond_entity in my_almond_plus.get_device_list:
+    for almond_entity in my_almond_plus.get_device_list():
         switches.append(AlmondPlusSwitch(almond_entity))
     add_devices(switches)
     return_value = True

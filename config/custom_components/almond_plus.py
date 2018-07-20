@@ -38,11 +38,15 @@ def setup(hass, config):
     try:
         _LOGGER.debug("Started - find me 1")
         connect_url = config[DOMAIN][CONF_URL]
+        _LOGGER.debug("Connecting to Almond+")
         hass.data[DATA_ALMONDPLUS] = AlmondPlus(connect_url)
+        _LOGGER.debug("Almond+ start")
         hass.data[DATA_ALMONDPLUS].start()
+        _LOGGER.debug("Almond+ get device")
+        time.sleep(2)
         _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS].get_device_list()))
         _LOGGER.debug("Loading switch platform")
-        load_platform(hass, DOMAIN, 'switch', discovered=None, hass_config=None)
+        load_platform(hass, 'switch', DOMAIN, discovered=None, hass_config=None)
         return_status = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -63,31 +67,34 @@ def start_almond_plus(event):
 class AlmondPlus:
 
     def __init__(self, api_url, call_back=None):
-        self.api_url = api_url
-        self.ws = None
-        self.call_back = call_back
-        self.receive_task = None
-        self.last_dym_upate = ""
-        self.keep_running = True
-        self.client_running = False
-        self.send_receive = {}
-        self.entity_dict = AlmondPlusEntityList()
-        t = threading.Thread(target=self.api_dispatcher, args=())
-        t.start()
+      _LOGGER.debug("__init__ started")
+      self.api_url = api_url
+      self.ws = None
+      self.call_back = call_back
+      self.receive_task = None
+      self.last_dym_upate = ""
+      self.keep_running = True
+      self.client_running = False
+      self.send_receive = {}
+      self.entity_dict = AlmondPlusEntityList()
+      t = threading.Thread(target=self.api_dispatcher, args=())
+      t.start()
+      _LOGGER.debug("__init__ done")
 
     def __del__(self):
-        print("Delete started")
+        _LOGGER.debug("Delete started")
         if self.ws is not None:
             self.stop()
-        print("deleted")
+        _LOGGER.debug("deleted")
 
     def connect(self):
-        print("connecting")
+        _LOGGER.debug("connecting")
         if self.ws is None:
-            print("opening socket ("+self.api_url+')')
+            _LOGGER.debug("opening socket ("+self.api_url+')')
             self.ws = websocket.WebSocket()
+            _LOGGER.debug("WebSocket ("+str(self.ws)+")")
             self.ws.connect(self.api_url)
-            print("Socket connected")
+            _LOGGER.debug("Socket connected")
 
     def disconnect(self):
         pass
@@ -108,7 +115,9 @@ class AlmondPlus:
         """
         tmp_uuid = str(uuid.uuid1())
         my_message = '{"MobileInternalIndex":"' + tmp_uuid + '",' + message + '}'
+        _LOGGER.debug("Send next")
         self.send(my_message)
+        _LOGGER.debug("After send")
         loop_count = 0
         tmp_resp = ""
         while loop_count < 20:
@@ -143,48 +152,50 @@ class AlmondPlus:
         return response.lower() == 'true'
 
     def send(self, message):
-        print("sending "+message)
+        _LOGGER.debug("sending "+message)
         self.ws.send(message)
-        print("Sent")
+        _LOGGER.debug("Sent")
 
     def receive(self):
-        print("receive started")
+        _LOGGER.debug("receive started")
         try:
             recv_data = self.ws.recv()
-            print(recv_data)
+            _LOGGER.debug(recv_data)
             parse_data = json.loads(recv_data)
             if 'MobileInternalIndex' in parse_data:
                 tmp_mobile_internal_index = parse_data['MobileInternalIndex']
                 self.send_receive[tmp_mobile_internal_index] = parse_data
-                print("load send rec: " + tmp_mobile_internal_index + '-' + json.dumps(self.send_receive[tmp_mobile_internal_index]))
+                _LOGGER.debug("load send rec: " + tmp_mobile_internal_index + '-' + json.dumps(self.send_receive[tmp_mobile_internal_index]))
             elif 'CommandType' in parse_data:
                 if self.call_back is not None:
                     self.call_back(json.dumps(parse_data))
-                print(parse_data['CommandType'])
+                _LOGGER.debug(parse_data['CommandType'])
 
         except Exception as e:
-            print("Error")
-            print("**************************\n"
-                  + str(e) + "\n"
-                  + "**************************")
+            _LOGGER.error("Error\n"+
+                          "**************************\n"
+                          + str(e) + "\n"
+                          + "**************************")
             self.ws = None
             return
-        print("receive ended")
+        _LOGGER.debug("receive ended")
         if self.client_running:
             self.receive()
 
     def api_dispatcher(self):
         while self.keep_running:
-            print("Dispatcher Start")
+            _LOGGER.debug("Dispatcher Start")
             if self.client_running:
-                print("Client is running")
+                _LOGGER.debug("Client is running")
                 if self.ws is None:
-                    print("self.ws is none")
+                    _LOGGER.debug("self.ws is none")
                     self.connect()
                     self.receive()
 
     def start(self):
-        self.client_running = True
+      _LOGGER.debug("start started")
+      self.client_running = True
+      _LOGGER.debug("start Finsh")
 
     def stop(self):
         print("Stop 1")
