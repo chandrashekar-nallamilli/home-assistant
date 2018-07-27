@@ -6,38 +6,35 @@ https://home-assistant.io/components/switch.almond_plus/
 """
 import logging
 from homeassistant.components.switch import SwitchDevice
-import custom_components.almond_plus as almond_plus
+import datetime
+import  traceback
 
 DOMAIN = "almond_plus"
 DATA_ALMONDPLUS = "ALMONDPLUS"
 
 _LOGGER = logging.getLogger(__name__)
 
-#
-# PIN_SCHEMA = vol.Schema({
-#     vol.Required(CONF_NAME): cv.string,
-#     vol.Optional(CONF_INITIAL, default=False): cv.boolean,
-#     vol.Optional(CONF_NEGATE, default=False): cv.boolean,
-# })
-#
-# PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-#     vol.Required(CONF_PINS, default={}):
-#         vol.Schema({cv.positive_int: PIN_SCHEMA}),
-# })
-
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
-    """Set up the Arduino platform."""
     return_value = False
-    _LOGGER.debug("Started - find me 2")
-    my_almond_plus = hass.data[DATA_ALMONDPLUS]
-    switches = []
-    _LOGGER.debug("looking for devices")
-    for almond_entity in my_almond_plus.get_device_list():
-        switches.append(AlmondPlusSwitch(almond_entity))
-    add_devices(switches)
-    return_value = True
-    _LOGGER.debug("Setup ended with "+str(return_value))
+    try:
+        _LOGGER.debug("Started - find me 2")
+        my_almond_plus = hass.data[DATA_ALMONDPLUS]
+        switches = []
+        _LOGGER.debug("looking for devices")
+        for almond_entity in my_almond_plus.get_device_list():
+        #     if almond_entity.value_type == "1":
+        #         switches.append(AlmondPlusSwitch(almond_entity))
+            switches.append(AlmondPlusSwitch(almond_entity))
+        add_devices(switches)
+        return_value = True
+    except Exception as e:
+        _LOGGER.error("Error\n"
+                      + "**************************\n"
+                      + str(e) + "\n"
+                      + traceback.format_exc()
+                      + "**************************")
+    _LOGGER.debug("Setup ended with " + str(return_value))
     return return_value
 
 
@@ -47,11 +44,19 @@ class AlmondPlusSwitch(SwitchDevice):
     def __init__(self, device):
         self._id = device.id
         self._device_id = device.device_id
-        self._name = device.name + '_' + device.id + '_' +  device.device_id
+        self._name = DOMAIN+"_"+device.name + '_' + device.id + '_' + device.device_id
         self._state = ''
-        self.value_value = device.value_value
         self._set_state(device.value_value)
 
+        """Attributes"""
+        self.friendly_device_type = device.friendly_device_type
+        self.type = device.type
+        self.location = device.location
+        self.last_active_epoch = device.last_active_epoch
+        self.model = device.model
+        self.value_name = device.value_name
+        self.value_value = device.value_value
+        self.value_type = device.value_type
 
     @property
     def name(self):
@@ -71,20 +76,54 @@ class AlmondPlusSwitch(SwitchDevice):
     @property
     def is_on(self):
         """Return true if pin is high/on."""
+        _LOGGER.debug("is_on "+self.name+"-"+self._state)
         return self._state
+
+    @property
+    def should_poll(self):
+        return False
 
     def turn_on(self, **kwargs):
         """Turn the pin to high/on."""
+        _LOGGER.debug("Turn on")
         self._state = 'on'
+        self.schedule_update_ha_state()
 
     def turn_off(self, **kwargs):
         """Turn the pin to low/off."""
+        _LOGGER.debug("Turn off")
         self._state = 'off'
+        self.schedule_update_ha_state()
+
+    @property
+    def device_state_attributes(self):
+        """Return the optional state attributes."""
+        data = {}
+        data["id"] = self._id
+        data["device_id"] = self._device_id
+        data["friendly_device_type"] = self.friendly_device_type
+        data["type"] = self.type
+        data["location"] = self.location
+        data["last_active_epoch"] = self.last_active_epoch
+        data["last_active_datetime"] = datetime.datetime.fromtimestamp(int(self.last_active_epoch))
+        data["model"] = self.model
+        data["value_name"] = self.value_name
+        data["value_value"] = self.value_value
+        data["value_type"] = self.value_type
+        return data
+
+    def update(self):
+        _LOGGER.debug("Switch Update -"+self._id+"-"+self.device_id+"-")
 
     def _set_state(self, value_value):
-        if value_value == "True":
+        _LOGGER.debug("Setting State -"+value_value+"-"+value_value.lower()+"-")
+        if value_value.lower() == "true":
             self._state = 'on'
-        elif value_value == "False":
+            _LOGGER.debug("Setting on "+self._state)
+        elif value_value.lower() == "false":
             self._state = 'off'
+            _LOGGER.debug("Setting off "+self._state)
         else:
             self._state = 'unknown'
+        _LOGGER.debug("Setting unknown " + self._state)
+        _LOGGER.debug("Setting State Finish "+self._state)
