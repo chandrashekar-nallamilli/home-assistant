@@ -78,9 +78,23 @@ def start_almond_plus(event):
 
 
 class AlmondPlus:
+    """
+    This class will be the API for Almond+
+    For now I am including it in the hass component for connivance debugging.
+    Once finished it will be moved to it's own lib as pre hass guidelines
+    Also the hass specific debug statements will be removed.
+    """
 
     def __init__(self, api_url, call_back=None):
-        _LOGGER.debug("__init__ started")
+        """
+        The init of the Almond+ Setup global vars and start a thread to receive on
+        :param api_url:
+            The URL to connect to the Almond+
+        :param call_back:
+            A reference to function that when an unsolicited received (a received that was
+                not in response to a send) will build a dict and return it of
+                device id, device_id, value
+        """
         self.api_url = api_url
         self.ws = None
         self.call_back = call_back
@@ -92,18 +106,18 @@ class AlmondPlus:
         self.entity_dict = None
         t = threading.Thread(target=self.api_dispatcher, args=())
         t.start()
-        _LOGGER.debug("__init__ done")
 
     def __del__(self):
-        _LOGGER.debug("Delete started")
         if self.ws is not None:
             self.stop()
-        _LOGGER.debug("deleted")
 
     def connect(self):
+        """
+        The function creates a websocket 'ws'
+        """
         _LOGGER.debug("connecting")
         if self.ws is None:
-            _LOGGER.debug("opening socket ("+self.api_url+')')
+            _LOGGER.debug("opening socket")
             self.ws = websocket.WebSocket()
             _LOGGER.debug("WebSocket ("+str(self.ws)+")")
             self.ws.connect(self.api_url)
@@ -145,12 +159,26 @@ class AlmondPlus:
         return tmp_resp
 
     def get_device_list(self):
+        """
+        Will poll Almond+ for devices info if needed
+        :return:
+            Returns a dict of Almond+ Entities
+            The key is id and device_id zero filled to 4 digets.
+        """
         if self.entity_dict is None:
             message = '"CommandType":"DeviceList"'
             self.entity_dict = self._build_entity_list(self._send_receive(message))
         return self.entity_dict
 
     def _build_entity_list(self, receive_data):
+        """
+        Helper function to build a dict of Almond+ entities from
+            a response message.
+        :param receive_data:
+            The receive data may be from a device_list or state change event
+        :return:
+            Almond+ entity dict
+        """
         entity_dict = []
         response = receive_data["Devices"]
         for id in response:
@@ -171,6 +199,14 @@ class AlmondPlus:
         return entity_dict
 
     def set_device(self, id, device_id, value):
+        """
+        Set device to value
+        :param id:
+        :param device_id:
+        :param value:
+            No testing if value is correct type
+        :return:
+        """
         message = '"CommandType":"UpdateDeviceIndex", "ID":"' \
                   + id + '","Index":"' + device_id + '", "Value":"' + value + '"'
         response = self._send_receive(message)["Success"]
@@ -182,6 +218,12 @@ class AlmondPlus:
         _LOGGER.debug("Sent")
 
     def _update_entity(self, entity_update):
+        """
+        Helper function to keep Almond+ dict up to date.
+        :param entity_update:
+            The entity may be full or partial, example from a value
+                change event.
+        """
         device_id = entity_update.device_id
         id = entity_update.id
         entity_key = id.zfill(4) + device_id.zfill(4)
@@ -206,6 +248,14 @@ class AlmondPlus:
                 self.entity_dict[entity_key].value_value = entity_update.value_value
 
     def receive(self):
+        """
+        The receive function is part of the worker loop.
+        The dispatch thread will re-launch as necessarily.
+        The receive can be generated from a device state change or
+            response to a command. Any commands will have a different guid
+        :return:
+            Nothing is return directly, but the internal Almond+ entities will be up to date.
+        """
         _LOGGER.debug("receive started")
         try:
             recv_data = self.ws.recv()
@@ -246,6 +296,12 @@ class AlmondPlus:
             self.receive()
 
     def api_dispatcher(self):
+        """
+        This is the other half of the worker loop.
+        Will connet then call receive function which will call it's self.
+        The only reason receive returns is either the client is stopped or
+            there was an error.
+        """
         while self.keep_running:
             _LOGGER.debug("Dispatcher Start")
             if self.client_running:
@@ -256,11 +312,21 @@ class AlmondPlus:
                     self.receive()
 
     def start(self):
+        """
+        keep_running flag will keep the dispatch looping
+        then when this function turns on the client_running flag
+            the dispatch loop will then call connect/receive.
+        """
         _LOGGER.debug("start started")
         self.client_running = True
         _LOGGER.debug("start Finsh")
 
     def stop(self):
+        """
+        clears both the dispatch and communications flags then
+            closes the socket connection allowing the threads to
+            unwind and the API shuts down.
+        """
         print("Stop 1")
         self.client_running = False
         self.keep_running = False
@@ -271,6 +337,13 @@ class AlmondPlus:
 
 
 class AlmondPlusEntityList:
+    """
+    Class to manage a dictionary of Almond+ entities
+    Each Almond+ device has an id. Then that device may have
+        more than one switch, sensor, or ect identified with a
+        device_id. Both numbers zero filled to 4 digits make up the
+        entity key.
+    """
     def __init__(self):
         self._EntityDict = {}
         self._index = 0
@@ -349,6 +422,11 @@ class AlmondPlusEntity:
                 + ',"value_type":"' + self.value_type + '"' \
                 + '}'
 
+
+'''
+This is an example response from a Almond+ Device List.
+Some of the JSON has been expanded for reference.
+'''
 # {
 #   "MobileInternalIndex":"9cfd3f18-8467-11e8-bbd0-0023246df72f",
 #   "CommandType":"DeviceList",
