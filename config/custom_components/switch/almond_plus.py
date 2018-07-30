@@ -23,9 +23,11 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         switches = []
         _LOGGER.debug("looking for devices")
         for almond_entity in my_almond_plus.get_device_list():
-        #     if almond_entity.value_type == "1":
-        #         switches.append(AlmondPlusSwitch(almond_entity))
-            switches.append(AlmondPlusSwitch(almond_entity))
+            if almond_entity.value_type == "1":
+                tmp = AlmondPlusSwitch(almond_entity)
+                _LOGGER.debug("Device -"+tmp.id+", "+tmp.device_id+", "+tmp.state+", "+tmp.name)
+                switches.append(tmp)
+            #switches.append(AlmondPlusSwitch(almond_entity))
         add_devices(switches)
         return_value = True
     except Exception as e:
@@ -39,7 +41,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 
 class AlmondPlusSwitch(SwitchDevice):
-    """Representation of an Arduino switch."""
+    """Representation of an Almond+ switch."""
 
     def __init__(self, device):
         self._id = device.id
@@ -77,7 +79,7 @@ class AlmondPlusSwitch(SwitchDevice):
     def is_on(self):
         """Return true if pin is high/on."""
         _LOGGER.debug("is_on "+self.name+"-"+self._state)
-        return self._state
+        return self._state == "on"
 
     @property
     def should_poll(self):
@@ -87,13 +89,11 @@ class AlmondPlusSwitch(SwitchDevice):
         """Turn the pin to high/on."""
         _LOGGER.debug("Turn on")
         self._state = 'on'
-        self.schedule_update_ha_state()
 
     def turn_off(self, **kwargs):
         """Turn the pin to low/off."""
         _LOGGER.debug("Turn off")
         self._state = 'off'
-        self.schedule_update_ha_state()
 
     @property
     def device_state_attributes(self):
@@ -119,11 +119,13 @@ class AlmondPlusSwitch(SwitchDevice):
         _LOGGER.debug("Setting State -"+value_value+"-"+value_value.lower()+"-")
         if value_value.lower() == "true":
             self._state = 'on'
+            self.turn_on()
             _LOGGER.debug("Setting on "+self._state)
         elif value_value.lower() == "false":
             self._state = 'off'
+            self.turn_off()
             _LOGGER.debug("Setting off "+self._state)
         else:
             self._state = 'unknown'
-        _LOGGER.debug("Setting unknown " + self._state)
+            _LOGGER.debug("Setting unknown " + self._state)
         _LOGGER.debug("Setting State Finish "+self._state)
