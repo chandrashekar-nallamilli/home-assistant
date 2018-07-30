@@ -22,7 +22,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         my_almond_plus = hass.data[DATA_ALMONDPLUS]["almondplus_api"]
         switches = []
         _LOGGER.debug("looking for devices")
-        for almond_entity in my_almond_plus.get_device_list():
+        for almond_key, almond_entity in my_almond_plus.get_device_list().items():
             if almond_entity.value_type == "1":
                 tmp = AlmondPlusSwitch(almond_entity)
                 _LOGGER.debug("Device -"+tmp.id+", "+tmp.device_id+", "+tmp.state+", "+tmp.name)
@@ -47,6 +47,23 @@ class AlmondPlusSwitch(SwitchDevice):
     """Representation of an Almond+ switch."""
 
     def __init__(self, device):
+        self._id = None
+        self._device_id = None
+        self._name = None
+        self._state = None
+
+        """Attributes"""
+        self.friendly_device_type = None
+        self.type = None
+        self.location = None
+        self.last_active_epoch = None
+        self.model = None
+        self.value_name = None
+        self.value_value = None
+        self.value_type = None
+        self._update_properties(device)
+
+    def _update_properties(self, device):
         self._id = device.id
         self._device_id = device.device_id
         self._name = DOMAIN+"_"+device.name + '_' + device.id + '_' + device.device_id
@@ -115,8 +132,9 @@ class AlmondPlusSwitch(SwitchDevice):
         data["value_type"] = self.value_type
         return data
 
-    def update(self):
+    def update(self, device):
         _LOGGER.debug("Switch Update -"+self._id+"-"+self.device_id+"-")
+        self._update_properties(device)
         self.schedule_update_ha_state()
 
     def set_state(self, value_value):

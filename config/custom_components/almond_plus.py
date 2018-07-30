@@ -45,7 +45,7 @@ def setup(hass, config):
         myhass_data["almondplus_api"] = AlmondPlus(connect_url, almond_plus_call_back)
         myhass_data["almondplus_switch_entities"] = None
         hass.data[DATA_ALMONDPLUS] = myhass_data
-        hass.data[DATA_ALMONDPLUS]["almondplus_api"] .start()
+        hass.data[DATA_ALMONDPLUS]["almondplus_api"].start()
         time.sleep(2)
         _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS]["almondplus_api"].get_device_list()))
         _LOGGER.debug("Loading switch platform")
@@ -66,21 +66,22 @@ def setup(hass, config):
     return return_status
 
 
-def almond_plus_call_back(almond_entity):
-    _LOGGER.debug("Call back len "+str(len(almond_entity)))
+def almond_plus_call_back(almond_entities):
     tmp_switches = myhass_data["almondplus_switch_entities"]
-    for key in almond_entity:
-        values = almond_entity[key]
-        _LOGGER.debug("id: "+values["id"]+" device_id: "
-                      + values["device_id"]+" value: "
-                      + values["value"])
+    tmp_almond_entities = myhass_data["almondplus_api"].get_device_list()
+    for almond_key, almond_entity in almond_entities.items():
+        _LOGGER.debug("id: "+almond_entity.id+" device_id: "
+                      + almond_entity.device_id+" value: "
+                      + almond_entity.value_value)
+        tmp_id = almond_entity.id
+        tmp_device_id = almond_entity.device_id
+        tmp_key = tmp_id.zfill(4) + tmp_device_id.zfill(4)
         """
         First check through switches
         """
         for switch_entity in tmp_switches:
-            if switch_entity.id == values["id"] and switch_entity.device_id == values["device_id"]:
-                switch_entity.set_state(values["value"])
-                switch_entity.update()
+            if switch_entity.id == tmp_id and switch_entity.device_id == tmp_device_id:
+                switch_entity.update(tmp_almond_entities[tmp_key])
 
 
 def stop_almond_plus(event):
@@ -193,7 +194,7 @@ class AlmondPlus:
         :return:
             Almond+ entity dict
         """
-        entity_dict = []
+        entity_dict = {}
         response = receive_data["Devices"]
         for id in response:
             if 'Data' in response[id]:
@@ -209,7 +210,8 @@ class AlmondPlus:
                                               , tmp_device_data
                                               , device_id
                                               , tmp_device_value[device_id])
-                entity_dict.append(tmp_entity)
+                tmp_key = id.zfill(4)+device_id.zfill(4)
+                entity_dict[tmp_key] = tmp_entity
         return entity_dict
 
     def set_device(self, id, device_id, value):
@@ -235,31 +237,29 @@ class AlmondPlus:
         """
         Helper function to keep Almond+ dict up to date.
         :param entity_update:
-            The entity may be full or partial, example from a value
+            The dict of entity may be full or partial, example from a value
                 change event.
         """
-        device_id = entity_update.device_id
-        id = entity_update.id
-        entity_key = id.zfill(4) + device_id.zfill(4)
-        if entity_key in self.entity_dict:
-            if len(entity_update.name) > 0:
-                self.entity_dict[entity_key].name = entity_update.name
-            if len(entity_update.friendly_device_type) > 0:
-                self.entity_dict[entity_key].friendly_device_type = entity_update.friendly_device_type
-            if len(entity_update.type) > 0:
-                self.entity_dict[entity_key].type = entity_update.type
-            if len(entity_update.location) > 0:
-                self.entity_dict[entity_key].location = entity_update.location
-            if len(entity_update.last_active_epoch) > 0:
-                self.entity_dict[entity_key].last_active_epoch = entity_update.last_active_epoch
-            if len(entity_update.model) > 0:
-                self.entity_dict[entity_key].model = entity_update.model
-            if len(entity_update.value_name) > 0:
-                self.entity_dict[entity_key].value_name = entity_update.value_name
-            if len(entity_update.value_type) > 0:
-                self.entity_dict[entity_key].value_type = entity_update.value_type
-            if len(entity_update.value_value) > 0:
-                self.entity_dict[entity_key].value_value = entity_update.value_value
+        for entity_key, entity_value in entity_update.items():
+            if entity_key in self.entity_dict:
+                if len(entity_value.name) > 0:
+                    self.entity_dict[entity_key].name = entity_value.name
+                if len(entity_value.friendly_device_type) > 0:
+                    self.entity_dict[entity_key].friendly_device_type = entity_value.friendly_device_type
+                if len(entity_value.type) > 0:
+                    self.entity_dict[entity_key].type = entity_value.type
+                if len(entity_value.location) > 0:
+                    self.entity_dict[entity_key].location = entity_value.location
+                if len(entity_value.last_active_epoch) > 0:
+                    self.entity_dict[entity_key].last_active_epoch = entity_value.last_active_epoch
+                if len(entity_value.model) > 0:
+                    self.entity_dict[entity_key].model = entity_value.model
+                if len(entity_value.value_name) > 0:
+                    self.entity_dict[entity_key].value_name = entity_value.value_name
+                if len(entity_value.value_type) > 0:
+                    self.entity_dict[entity_key].value_type = entity_value.value_type
+                if len(entity_value.value_value) > 0:
+                    self.entity_dict[entity_key].value_value = entity_value.value_value
 
     def receive(self):
         """
@@ -281,20 +281,10 @@ class AlmondPlus:
                 _LOGGER.debug("load send rec: " + tmp_mobile_internal_index + '-' + json.dumps(self.send_receive[tmp_mobile_internal_index]))
             elif 'CommandType' in parse_data:
                 if 'Devices' in parse_data:
-                    changed_devices = {}
                     tmp_entity_list = self._build_entity_list(parse_data)
-                    for changed_entity in tmp_entity_list:
-                        self._update_entity(changed_entity)
-                        tmp_id = changed_entity.id
-                        tmp_device_id = changed_entity.device_id
-                        tmp_key = changed_entity.id.zfill(4)+changed_entity.device_id.zfill(4)
-                        tmp_value = changed_entity.value_value
-                        tmp_return_value = {"id": tmp_id
-                                            , "device_id": tmp_device_id
-                                            , "value": tmp_value}
-                        changed_devices[tmp_key] = tmp_return_value
+                    self._update_entity(tmp_entity_list)
                     if self.call_back is not None:
-                        self.call_back(changed_devices)
+                        self.call_back(tmp_entity_list)
                 _LOGGER.debug(parse_data['CommandType'])
 
         except Exception as e:
