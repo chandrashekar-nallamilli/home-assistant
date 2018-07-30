@@ -38,16 +38,23 @@ def setup(hass, config):
     """Set up the Almond+ component."""
     return_status = False
     try:
+        global myhass_data
+        myhass_data = {}
+        myhass_data["config"] = config[DOMAIN]
         connect_url = config[DOMAIN][CONF_URL]
-        hass.data[DATA_ALMONDPLUS] = AlmondPlus(connect_url, almond_plus_call_back)
-        hass.data[DATA_ALMONDPLUS].start()
+        myhass_data["almondplus_api"] = AlmondPlus(connect_url, almond_plus_call_back)
+        myhass_data["almondplus_switch_entities"] = None
+        hass.data[DATA_ALMONDPLUS] = myhass_data
+        hass.data[DATA_ALMONDPLUS]["almondplus_api"] .start()
         time.sleep(2)
-        _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS].get_device_list()))
+        _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS]["almondplus_api"].get_device_list()))
         _LOGGER.debug("Loading switch platform")
         load_platform(hass, 'switch', DOMAIN, discovered=None, hass_config=None)
         time.sleep(2)
         switches = sorted(hass.states.async_entity_ids('switch'))
-        _LOGGER.debug("switch list: "+str(switches))
+        _LOGGER.debug("switch list 1: "+str(switches))
+        tmp_switches = myhass_data["almondplus_switch_entities"]
+        _LOGGER.debug("switch list 2: "+str(tmp_switches))
         return_status = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -61,12 +68,19 @@ def setup(hass, config):
 
 def almond_plus_call_back(almond_entity):
     _LOGGER.debug("Call back len "+str(len(almond_entity)))
+    tmp_switches = myhass_data["almondplus_switch_entities"]
     for key in almond_entity:
         values = almond_entity[key]
         _LOGGER.debug("id: "+values["id"]+" device_id: "
                       + values["device_id"]+" value: "
                       + values["value"])
-    schedule_update_ha_state()
+        """
+        First check through switches
+        """
+        for switch_entity in tmp_switches:
+            if switch_entity.id == values["id"] and switch_entity.device_id == values["device_id"]:
+                switch_entity.set_state(values["value"])
+                switch_entity.update()
 
 
 def stop_almond_plus(event):
