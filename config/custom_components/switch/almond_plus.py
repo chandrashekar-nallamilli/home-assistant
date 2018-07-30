@@ -19,7 +19,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     return_value = False
     try:
         _LOGGER.debug("Started - find me 2")
-        my_almond_plus = hass.data[DATA_ALMONDPLUS]
+        my_almond_plus = hass.data[DATA_ALMONDPLUS]["almondplus_api"]
         switches = []
         _LOGGER.debug("looking for devices")
         for almond_entity in my_almond_plus.get_device_list():
@@ -28,7 +28,10 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
                 _LOGGER.debug("Device -"+tmp.id+", "+tmp.device_id+", "+tmp.state+", "+tmp.name)
                 switches.append(tmp)
             #switches.append(AlmondPlusSwitch(almond_entity))
-        add_devices(switches)
+        if len(switches) > 0:
+            add_devices(switches)
+            hass.data[DATA_ALMONDPLUS]["almondplus_switch_entities"] = switches
+
         return_value = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -48,7 +51,7 @@ class AlmondPlusSwitch(SwitchDevice):
         self._device_id = device.device_id
         self._name = DOMAIN+"_"+device.name + '_' + device.id + '_' + device.device_id
         self._state = ''
-        self._set_state(device.value_value)
+        self.set_state(device.value_value)
 
         """Attributes"""
         self.friendly_device_type = device.friendly_device_type
@@ -114,8 +117,9 @@ class AlmondPlusSwitch(SwitchDevice):
 
     def update(self):
         _LOGGER.debug("Switch Update -"+self._id+"-"+self.device_id+"-")
+        self.schedule_update_ha_state()
 
-    def _set_state(self, value_value):
+    def set_state(self, value_value):
         _LOGGER.debug("Setting State -"+value_value+"-"+value_value.lower()+"-")
         if value_value.lower() == "true":
             self._state = 'on'
