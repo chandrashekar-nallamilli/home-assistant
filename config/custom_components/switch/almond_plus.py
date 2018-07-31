@@ -16,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
+    global my_almond_plus
     return_value = False
     try:
         _LOGGER.debug("Started - find me 2")
@@ -32,6 +33,16 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
             add_devices(switches)
             hass.data[DATA_ALMONDPLUS]["almondplus_switch_entities"] = switches
 
+        # def handle_service_on(call):
+        #     name = call.data.get("entity_id")
+        #     _LOGGER.debug("service called on: " + name)
+        #
+        # def handle_service_off(call):
+        #     name = call.data.get("entity_id")
+        #     _LOGGER.debug("service called off: " + name)
+        #
+        # hass.services.register("switch", 'turn_on', handle_service_on)
+        # hass.services.register("switch", 'turn_off', handle_service_off)
         return_value = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -108,12 +119,13 @@ class AlmondPlusSwitch(SwitchDevice):
     def turn_on(self, **kwargs):
         """Turn the pin to high/on."""
         _LOGGER.debug("Turn on")
-        self._state = 'on'
+        my_almond_plus.set_device(self.id, self.device_id, "true")
 
     def turn_off(self, **kwargs):
         """Turn the pin to low/off."""
         _LOGGER.debug("Turn off")
         self._state = 'off'
+        my_almond_plus.set_device(self.id, self.device_id, "false")
 
     @property
     def device_state_attributes(self):
@@ -141,11 +153,11 @@ class AlmondPlusSwitch(SwitchDevice):
         _LOGGER.debug("Setting State -"+value_value+"-"+value_value.lower()+"-")
         if value_value.lower() == "true":
             self._state = 'on'
-            self.turn_on()
+            #self.turn_on()
             _LOGGER.debug("Setting on "+self._state)
         elif value_value.lower() == "false":
             self._state = 'off'
-            self.turn_off()
+            #self.turn_off()
             _LOGGER.debug("Setting off "+self._state)
         else:
             self._state = 'unknown'
