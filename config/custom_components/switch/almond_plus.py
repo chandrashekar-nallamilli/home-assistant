@@ -7,7 +7,7 @@ https://home-assistant.io/components/switch.almond_plus/
 import logging
 from homeassistant.components.switch import SwitchDevice
 import datetime
-import  traceback
+import traceback
 
 DOMAIN = "almond_plus"
 DATA_ALMONDPLUS = "ALMONDPLUS"
@@ -22,7 +22,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         _LOGGER.debug("Started - find me 2")
         my_almond_plus = hass.data[DATA_ALMONDPLUS]["almondplus_api"]
         switches = []
-        _LOGGER.debug("looking for devices")
+        _LOGGER.debug("looking for devices (switch)")
         for almond_key, almond_entity in my_almond_plus.get_device_list().items():
             if almond_entity.value_type == "1":
                 tmp = AlmondPlusSwitch(almond_entity)
@@ -32,17 +32,6 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         if len(switches) > 0:
             add_devices(switches)
             hass.data[DATA_ALMONDPLUS]["almondplus_switch_entities"] = switches
-
-        # def handle_service_on(call):
-        #     name = call.data.get("entity_id")
-        #     _LOGGER.debug("service called on: " + name)
-        #
-        # def handle_service_off(call):
-        #     name = call.data.get("entity_id")
-        #     _LOGGER.debug("service called off: " + name)
-        #
-        # hass.services.register("switch", 'turn_on', handle_service_on)
-        # hass.services.register("switch", 'turn_off', handle_service_off)
         return_value = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -117,12 +106,10 @@ class AlmondPlusSwitch(SwitchDevice):
         return False
 
     def turn_on(self, **kwargs):
-        """Turn the pin to high/on."""
         _LOGGER.debug("Turn on")
         my_almond_plus.set_device(self.id, self.device_id, "true")
 
     def turn_off(self, **kwargs):
-        """Turn the pin to low/off."""
         _LOGGER.debug("Turn off")
         self._state = 'off'
         my_almond_plus.set_device(self.id, self.device_id, "false")

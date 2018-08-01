@@ -44,17 +44,27 @@ def setup(hass, config):
         connect_url = config[DOMAIN][CONF_URL]
         myhass_data["almondplus_api"] = AlmondPlus(connect_url, almond_plus_call_back)
         myhass_data["almondplus_switch_entities"] = None
+        myhass_data["almondplus_cover_entities"] = None
         hass.data[DATA_ALMONDPLUS] = myhass_data
         hass.data[DATA_ALMONDPLUS]["almondplus_api"].start()
         time.sleep(2)
         _LOGGER.debug("Test Almond+ setup: "+str(hass.data[DATA_ALMONDPLUS]["almondplus_api"].get_device_list()))
         _LOGGER.debug("Loading switch platform")
         load_platform(hass, 'switch', DOMAIN, discovered=None, hass_config=None)
+        _LOGGER.debug("Loading cover platform")
+        load_platform(hass, 'cover', DOMAIN, discovered=None, hass_config=None)
         time.sleep(2)
+
         switches = sorted(hass.states.async_entity_ids('switch'))
         _LOGGER.debug("switch list 1: "+str(switches))
         tmp_switches = myhass_data["almondplus_switch_entities"]
         _LOGGER.debug("switch list 2: "+str(tmp_switches))
+
+        covers = sorted(hass.states.async_entity_ids('cover'))
+        _LOGGER.debug("cover list 1: "+str(covers))
+        tmp_covers = myhass_data["almondplus_cover_entities"]
+        _LOGGER.debug("cover list 2: "+str(tmp_covers))
+
         return_status = True
     except Exception as e:
         _LOGGER.error("Error\n"
@@ -68,6 +78,7 @@ def setup(hass, config):
 
 def almond_plus_call_back(almond_entities):
     tmp_switches = myhass_data["almondplus_switch_entities"]
+    tmp_covers = myhass_data["almondplus_cover_entities"]
     tmp_almond_entities = myhass_data["almondplus_api"].get_device_list()
     for almond_key, almond_entity in almond_entities.items():
         _LOGGER.debug("id: "+almond_entity.id+" device_id: "
@@ -82,6 +93,13 @@ def almond_plus_call_back(almond_entities):
         for switch_entity in tmp_switches:
             if switch_entity.id == tmp_id and switch_entity.device_id == tmp_device_id:
                 switch_entity.update(tmp_almond_entities[tmp_key])
+        """
+        Second check through covers
+        """
+        for cover_entity in tmp_covers:
+            if cover_entity.id == tmp_id and cover_entity.device_id == tmp_device_id:
+                cover_entity.update(tmp_almond_entities[tmp_key])
+
 
 
 def stop_almond_plus(event):
